@@ -14,7 +14,7 @@
 		"check:svelte": "svelte-check --tsconfig ./tsconfig.json"
 	},
 	"devDependencies": {
-		"@types/chrome": "^0.0.266",
-		"rollup": "^4.22.4"
+		"@types/chrome": "^0.2.1",
+		"rollup": "^4.62.2"
 	}
 }
