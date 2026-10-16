@@ -1,62 +1,7 @@
-import { send } from './runtime.js';
-import { serialize } from './utils.js';
+import { index } from './tree.js';
 
 /** @type {undefined | SvelteBlockDetail} */
 let current_block;
-
-export const index = {
-	/** @type {Map<string | object | Node, SvelteBlockDetail>} */
-	map: new Map(),
-
-	/** @param {{ node: SvelteBlockDetail; target?: Node; anchor?: Node }} opts */
-	add({ node, target: source, anchor }) {
-		this.map.set(node.id, node);
-		this.map.set(node.detail, node);
-
-		let target = source && this.map.get(source);
-		if (!target || target.container != node.container) {
-			target = node.container;
-		}
-		node.parent = target;
-
-		const sibling = anchor && this.map.get(anchor);
-		if (target) {
-			const idx = target.children.findIndex((n) => n === sibling);
-			if (idx === -1) target.children.push(node);
-			else target.children.splice(idx, 0, node);
-		}
-
-		send('bridge::courier/node->add', {
-			node: serialize(node),
-			target: node.parent?.id,
-			anchor: sibling?.id,
-		});
-	},
-
-	/** @param {{ node: SvelteBlockDetail; target?: Node; anchor?: Node }} opts */
-	update({ node }) {
-		send('bridge::courier/node->update', {
-			node: serialize(node),
-		});
-	},
-
-	/** @param {SvelteBlockDetail} node */
-	remove(node) {
-		if (!node) return;
-
-		this.map.delete(node.id);
-		this.map.delete(node.detail);
-
-		if (node.parent) {
-			node.parent.children = node.parent.children.filter((n) => n !== node);
-			node.parent = undefined;
-		}
-
-		send('bridge::courier/node->remove', {
-			node: serialize(node),
-		});
-	},
-};
 
 document.addEventListener('SvelteRegisterComponent', ({ detail }) => {
 	const { component, tagName } = detail;
@@ -153,7 +98,6 @@ document.addEventListener('SvelteRegisterBlock', ({ detail }) => {
 				node.container = group;
 				node.type = 'iteration';
 
-				// @ts-expect-error - overloaded nodes
 				index.add({ node, target: group, anchor });
 			} else {
 				index.add({ node, target, anchor });
