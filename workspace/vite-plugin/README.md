@@ -15,10 +15,12 @@ npm i -D svelte5-devtools-vite-plugin
 
 ## Usage
 
-List it **before** `svelte()`:
+List it **before** `svelte()` / `sveltekit()`. The plugin must exclude `svelte`
+from Vite's dependency pre-bundling before vite-plugin-svelte adds it back;
+otherwise the patched runtime files are never served.
 
 ```js
-// vite.config.js
+// vite.config.js — Vite + Svelte
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { svelteDevtools } from 'svelte5-devtools-vite-plugin';
@@ -28,9 +30,20 @@ export default defineConfig({
 });
 ```
 
-The plugin excludes `svelte` from Vite's dependency pre-bundling so the patched
-runtime files are served. Restart the dev server after adding or updating the
-plugin.
+```js
+// vite.config.js — SvelteKit
+import { defineConfig } from 'vite';
+import { sveltekit } from '@sveltejs/kit/vite';
+import { svelteDevtools } from 'svelte5-devtools-vite-plugin';
+
+export default defineConfig({
+	plugins: [svelteDevtools(), sveltekit()],
+});
+```
+
+The plugin takes no options. It sets `optimizeDeps.exclude: ['svelte']` itself
+and only applies to the dev server (`apply: 'serve'`). Restart the dev server
+after adding or updating the plugin.
 
 ## Enable on demand
 
@@ -90,6 +103,22 @@ serve time:
 
 If a Svelte release changes one of these internals, the plugin logs a warning
 and that feature is skipped. The rest keeps working.
+
+## Troubleshooting
+
+Check that the runtime is patched (adjust the port):
+
+```sh
+curl -s http://localhost:5173/node_modules/svelte/src/internal/client/dom/template.js \
+	| grep -c __svelte_devtools_hook__
+```
+
+- `0` or 404: Vite still serves the pre-bundled runtime. Move `svelteDevtools()`
+  before `svelte()`/`sveltekit()`, then restart with `vite --force`.
+- `[svelte-devtools] … not found` warnings: your Svelte version changed an
+  internal the plugin hooks; that feature is skipped.
+- With the on-demand setup, make sure `SVELTE_DEVTOOLS` is set in the dev
+  server's environment.
 
 ## Compatibility
 
