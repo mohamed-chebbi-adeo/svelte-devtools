@@ -153,9 +153,16 @@ export function serialize(node) {
 					ctx: cloned.map(([key, value]) => ({ key, value, readonly: true })),
 					source: source.slice(source.indexOf('{'), source.indexOf('}') + 1),
 				};
+			} else if ('line' in node.detail) {
+				// Svelte 5: the block's add_svelte_meta() frame — no condition
+				// source at runtime, so show the type and its location instead
+				const { type, file = '', line } = node.detail;
+				res.detail = {
+					ctx: [],
+					source: `{#${type}} ${file.slice(file.lastIndexOf('/') + 1)}:${line}`,
+				};
 			} else {
-				// Svelte 5: no compiled block-context array or source snapshot is
-				// derivable for an effect — leave empty (panel renders "None").
+				// Svelte 5 each item: no per-item context is exposed — leave empty
 				res.detail = {};
 			}
 			break;

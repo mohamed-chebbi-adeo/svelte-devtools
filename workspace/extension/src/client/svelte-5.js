@@ -13,6 +13,7 @@ import { componentStates } from './utils.js';
 /**
  * @typedef {object} Effect
  * @property {Effect | null} parent
+ * @property {number} f flags (BLOCK_EFFECT, BRANCH_EFFECT, ...)
  * @property {{ start: Node; end: Node | null } | null} [nodes]
  */
 
@@ -224,11 +225,11 @@ function scheduleRefresh(context) {
 }
 
 /**
- * Effects are Svelte's internal plumbing (every template, `{#if}`, `{#each}`,
- * render effect... is one) and carry no source info in Svelte 5, so they are
- * not shown — listing them buried the components under layers of empty
- * `{#block}` nodes. Each effect just remembers which visible node things
- * created inside it belong to.
+ * Effects are Svelte's internal plumbing (every template, branch, render
+ * effect... is one), so they are not shown — only the block effects of
+ * `{#if}`/`{#each}`/`{#await}`/`{#key}` (identified via add_svelte_meta()) and
+ * each items are. Each effect remembers which visible node things created
+ * inside it belong to.
  * @type {WeakMap<Effect, SvelteBlockDetail | undefined>}
  */
 const effectOwners = new WeakMap();
@@ -241,7 +242,68 @@ const effectNodes = new WeakMap();
 
 /** @param {Effect} effect */
 export function effectCreate(effect) {
-	effectOwners.set(effect, ownerOf(effect.parent));
+	const owner = ownerOf(effect.parent);
+	effectOwners.set(effect, owner);
+
+	// the block effect that $.if()/$.each()/... creates first inside its
+	// add_svelte_meta() frame is that block — show it as `{#if}` etc.
+	const frame = metaStack.at(-1);
+	if (frame && !claimedFrames.has(frame) && effect.f & BLOCK_EFFECT && BLOCKS.has(frame.type)) {
+		claimedFrames.add(frame);
+		const node = /** @type {any} */ ({
+			id: crypto.randomUUID(),
+			type: 'block',
+			tagName: frame.type,
+			detail: frame,
+			children: [],
+		});
+		add(node, owner, effect);
+		effectOwners.set(effect, node);
+		if (frame.type === 'each') eachEffects.add(effect);
+		return;
+	}
+
+	// each item (and the {:else} fallback) is a branch of the each block
+	if (effect.parent && eachEffects.has(effect.parent) && effect.f & BRANCH_EFFECT) {
+		const node = /** @type {any} */ ({
+			id: crypto.randomUUID(),
+			type: 'iteration',
+			tagName: 'each',
+			detail: {},
+			children: [],
+		});
+		add(node, owner, effect);
+		effectOwners.set(effect, node);
+	}
+}
+
+// effect flags from svelte/internal/client/constants.js
+const BLOCK_EFFECT = 1 << 4;
+const BRANCH_EFFECT = 1 << 5;
+
+const BLOCKS = new Set(['if', 'each', 'await', 'key']);
+
+/**
+ * add_svelte_meta() frames (Svelte's DEV `dev_stack`) being executed,
+ * innermost last
+ * @type {{ type: string; file?: string; line: number; column: number }[]}
+ */
+const metaStack = [];
+
+/** @type {WeakSet<object>} frames whose block effect was already created */
+const claimedFrames = new WeakSet();
+
+/** @type {WeakSet<Effect>} */
+const eachEffects = new WeakSet();
+
+/** @param {any} frame */
+export function metaPush(frame) {
+	metaStack.push(frame);
+}
+
+/** @param {any} frame */
+export function metaPop(frame) {
+	if (metaStack.at(-1) === frame) metaStack.pop();
 }
 
 /**
@@ -302,16 +364,36 @@ export function nodesAttached(effect) {
 	const range = effect.nodes;
 	if (!range?.start) return;
 
-	if (parentNode?.type === 'component') place(parentNode, range.start);
+	// when hydrating, the end is only known once the effect's markup was
+	// walked (e.g. each items never report it) — walk again once it's set
+	if (!range.end && !pendingEnd.has(effect)) {
+		pendingEnd.add(effect);
+		queueMicrotask(() => {
+			pendingEnd.delete(effect);
+			if (effect.nodes === range && range.end) nodesAttached(effect);
+		});
+	}
+
+	// blocks/components start out under their owner; move them into the
+	// element their first DOM node is rendered in (an each item stays in its block)
+	const placeable = parentNode?.type === 'iteration' ? parentNode.container : parentNode;
+	if (placeable?.type === 'component' || placeable?.type === 'block') {
+		place(placeable, range.start);
+	}
 
 	/** @type {Node | null} */
 	let domNode = range.start;
 	while (domNode) {
 		// when hydrating, an outer effect's walk already registered the whole
-		// server-rendered subtree — effects attach outermost-first, so the
-		// later (deeper) claim is the real owner
+		// server-rendered subtree — a deeper effect is the real owner, so
+		// re-claim from ancestors only (append() reports ranges inner-first)
 		const claimed = domNodes.get(domNode);
-		if (claimed && claimed.container !== parentNode) removeTree(claimed);
+		if (claimed && claimed.container !== parentNode) {
+			const owner = nearestOwner(claimed);
+			if (!owner || (owner !== parentNode && parentNode && within(parentNode, owner))) {
+				removeTree(claimed);
+			}
+		}
 		const node = registerDomNode(domNode, parentNode?.detail, parentNode);
 		if (node) {
 			trackRoot(node);
@@ -321,6 +403,9 @@ export function nodesAttached(effect) {
 		domNode = domNode.nextSibling;
 	}
 }
+
+/** @type {WeakSet<Effect>} effects waiting for their hydration end node */
+const pendingEnd = new WeakSet();
 
 /** @type {WeakSet<SvelteBlockDetail>} components already moved to their DOM position */
 const placed = new WeakSet();
@@ -352,9 +437,9 @@ function move(component, first) {
 	// skip elements the component itself rendered (e.g. inside a nested range)
 	while (element && within(element, component)) element = element.container;
 	if (!element || element.type !== 'element') return;
-	// only within the parent component's own markup — not e.g. a snippet that
-	// a grandparent passed down and rendered somewhere else
-	if (nearestComponent(element) !== component.container) return;
+	// only within the owner's own markup — not e.g. a snippet that a
+	// grandparent passed down and rendered somewhere else
+	if (nearestOwner(element) !== component.container) return;
 
 	index.remove(component);
 	component.container = element;
@@ -384,10 +469,13 @@ function within(node, ancestor) {
 	return false;
 }
 
-/** @param {SvelteBlockDetail} node */
-function nearestComponent(node) {
+/**
+ * The component, block or each item whose markup `node` belongs to.
+ * @param {SvelteBlockDetail} node
+ */
+function nearestOwner(node) {
 	let n = node.container;
-	while (n && n.type !== 'component') n = n.container;
+	while (n && n.type === 'element') n = n.container;
 	return n;
 }
 
@@ -453,6 +541,8 @@ export function resolveDomNode(domNode) {
 	stateSet,
 	hydrateStart,
 	hydrateFailed,
+	metaPush,
+	metaPop,
 };
 
 // Structural add/remove of DOM nodes is covered by nodesAttached()/
