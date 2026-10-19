@@ -1,4 +1,5 @@
 import MagicString from 'magic-string';
+import { unique } from './anchor.js';
 
 // In DEV, the Svelte compiler wraps every named `$state`/`$derived`
 // declaration as `$.tag(source, 'name')` (for `$inspect.trace`), which lands in
@@ -40,12 +41,14 @@ const PROXY_HOOK = `
  * @returns {{ code: string, map: any } | null}
  */
 export function patchTracing(code, warn) {
-	const missing = [ANCHOR, PROXY_ANCHOR, 'DERIVED', 'STATE_SYMBOL', 'untrack'].filter(
-		(s) => !code.includes(s),
-	);
+	const missing = [
+		...[ANCHOR, PROXY_ANCHOR].filter((a) => !unique(code, a)),
+		// identifiers the injected hook code relies on being in scope
+		...['DERIVED', 'STATE_SYMBOL', 'untrack'].filter((s) => !code.includes(s)),
+	];
 	if (missing.length) {
 		warn(
-			`[svelte-devtools] ${missing.join(', ')} not found in internal/client/dev/tracing.js — Svelte internals may have changed; $state inspection skipped`,
+			`[svelte-devtools] ${missing.join(', ')} not found (or not unique) in internal/client/dev/tracing.js — Svelte internals may have changed; $state inspection skipped`,
 		);
 		return null;
 	}

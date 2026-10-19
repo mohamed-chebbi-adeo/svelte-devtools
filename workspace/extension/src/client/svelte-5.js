@@ -19,14 +19,16 @@ import { componentStates } from './utils.js';
 
 // Svelte 5 has no SvelteRegisterComponent/SvelteDOM* custom-event
 // instrumentation like Svelte 4 — instead, a companion Vite plugin
-// (svelte-devtools-vite-plugin) patches a handful of already-DEV-only anchor
-// points in svelte/internal/client/{context,reactivity/effects,dom/template}.js
-// to call the hook methods below, which drive the SAME version-agnostic
-// `index` tree (./tree.js) the Svelte 4 path uses.
+// (svelte5-devtools-vite-plugin) patches a handful of already-DEV-only anchor
+// points in svelte/internal/client/ (context, reactivity/effects,
+// reactivity/sources, dom/template, dev/tracing, render) to call the hook
+// methods below, which drive the SAME version-agnostic `index` tree
+// (./tree.js) the Svelte 4 path uses.
 //
-// Only components and DOM nodes are shown. Component identity = the
-// `ComponentContext` object for its instance lifetime, used directly as an
-// `index.map` key via `node.detail`. Effects aren't shown, only tracked (see
+// Shown: components, `{#if}`/`{#each}`/`{#await}`/`{#key}` blocks, each
+// items and DOM nodes. Component identity = the `ComponentContext` object for
+// its instance lifetime, used directly as an `index.map` key via
+// `node.detail`. Other effects aren't shown, only tracked (see
 // effectCreate()). DOM nodes need one extra WeakMap (below) since click/hover
 // need to resolve an arbitrary descendant DOM node up to its owning leaf
 // DebugNode.
@@ -350,14 +352,11 @@ export function effectDestroy(effect) {
 }
 
 /**
- * @param {Effect} effect with `.nodes = { start, end }` just assigned
- *
- * Timing risk to verify against the real app: if a nested block's DOM range
- * is a subset of an ancestor's, and the ancestor's own nodesAttached walk
- * runs (and recurses into children) before the descendant's content actually
- * exists in the DOM, ownership/nesting in the tree may end up flatter than
- * the real component structure. Observe the actual rendered tree in Chrome
- * DevTools before assuming this is correct.
+ * Registers the DOM range an effect just got (`.nodes = { start, end }`, or
+ * the hydration end once known) under the component/block/item that owns
+ * the effect. An ancestor's walk may already have claimed nodes a deeper
+ * effect owns (hydration walks outer ranges first) — those are re-claimed.
+ * @param {Effect} effect
  */
 export function nodesAttached(effect) {
 	const parentNode = ownerOf(effect);

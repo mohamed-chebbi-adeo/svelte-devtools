@@ -1,4 +1,5 @@
 import MagicString from 'magic-string';
+import { unique } from './anchor.js';
 
 // set() in svelte/internal/client/reactivity/sources.js is what every
 // `count = ...` assignment to a `$state` local compiles to. Its existing DEV
@@ -12,9 +13,9 @@ const ANCHOR = 'tag_proxy(new_value, /** @type {string} */ (source.label));';
  * @returns {{ code: string, map: any } | null}
  */
 export function patchSources(code, warn) {
-	if (!code.includes(ANCHOR)) {
+	if (!unique(code, ANCHOR)) {
 		warn(
-			'[svelte-devtools] anchor not found in internal/client/reactivity/sources.js — Svelte internals may have changed; live $state refresh skipped',
+			'[svelte-devtools] anchor not found (or not unique) in internal/client/reactivity/sources.js — Svelte internals may have changed; live $state refresh skipped',
 		);
 		return null;
 	}

@@ -1,4 +1,5 @@
 import MagicString from 'magic-string';
+import { unique } from './anchor.js';
 
 // Two component-boundary hooks in svelte/internal/client/context.js:
 // - push(): fires once per component instantiation, right after the DEV block
@@ -17,9 +18,9 @@ const META_END_ANCHOR = 'dev_stack = parent;';
  * @returns {{ code: string, map: any } | null}
  */
 export function patchContext(code, warn) {
-	if (!code.includes(PUSH_ANCHOR) || !code.includes(POP_ANCHOR)) {
+	if (!unique(code, PUSH_ANCHOR) || !unique(code, POP_ANCHOR)) {
 		warn(
-			'[svelte-devtools] anchor not found in internal/client/context.js — Svelte internals may have changed; component tree instrumentation skipped',
+			'[svelte-devtools] anchor not found (or not unique) in internal/client/context.js — Svelte internals may have changed; component tree instrumentation skipped',
 		);
 		return null;
 	}
@@ -38,7 +39,7 @@ export function patchContext(code, warn) {
 
 	// add_svelte_meta(): DEV-only wrapper the compiler emits around each
 	// {#if}/{#each}/{#await}/{#key}/component with its type and source location
-	if (code.includes(META_ANCHOR) && code.includes(META_END_ANCHOR)) {
+	if (unique(code, META_ANCHOR) && unique(code, META_END_ANCHOR)) {
 		s.replace(
 			META_ANCHOR,
 			`globalThis.__svelte_devtools_hook__?.metaPush?.(dev_stack);\n\t\t${META_ANCHOR}`,
@@ -49,7 +50,7 @@ export function patchContext(code, warn) {
 		);
 	} else {
 		warn(
-			'[svelte-devtools] add_svelte_meta() anchor not found in internal/client/context.js — {#if}/{#each}/... blocks will not be shown',
+			'[svelte-devtools] add_svelte_meta() anchor not found (or not unique) in internal/client/context.js — {#if}/{#each}/... blocks will not be shown',
 		);
 	}
 

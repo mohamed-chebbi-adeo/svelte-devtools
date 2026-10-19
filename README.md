@@ -31,7 +31,7 @@ the panel shows:
 - nested components with their props and `$state`
 - `{#if}`, `{#each}`, `{#await}` and `{#key}` blocks, labelled with their source
   location (e.g. `{#if} Configurator.svelte:489`)
-- each `{#each}` iteration as a separate `↪ item` node with its own content
+- each `{#each}` iteration as a separate `↪` node with its own content
 - DOM elements, nested inside the component, block or item that rendered them
 
 Setup:
@@ -40,8 +40,13 @@ Setup:
    [Vite configuration](#vite-configuration) below).
 2. Restart the Vite dev server whenever the plugin is added or updated, since
    it patches Svelte's runtime files.
-3. Open DevTools, select the **Svelte** tab and click **reload** to load the
-   tree. After the page navigates or refreshes, click **reload** again.
+3. Open DevTools and select the **Svelte** tab. The tree loads automatically,
+   also when DevTools is opened on an already-loaded page, and is rebuilt after
+   each navigation or refresh. The **reload** button is only needed when no
+   Svelte app was detected (e.g. the plugin wasn't active yet).
+
+Tested with Svelte 5.57 and Vite 8, in a Vite + Svelte app served by a NestJS
+server (Vite in middleware mode, with SSR and hydration).
 
 ### Vite configuration
 
@@ -50,6 +55,9 @@ Install the plugin as a dev dependency of your app:
 ```sh
 npm i -D svelte5-devtools-vite-plugin
 ```
+
+> The package is not published to npm yet. Until it is, use a
+> [local checkout](#local-checkout) of this repository instead.
 
 Then add `svelteDevtools()` to the `plugins` array. It **must be listed before**
 `svelte()` / `sveltekit()`: both run their `config` hook early, and the
@@ -116,7 +124,7 @@ You can also add a script, e.g.
 requires an ES module config (`vite.config.mjs`, or `"type": "module"` in
 `package.json`).
 
-**Use a local checkout** of this repository instead of the npm package (to test
+<a id="local-checkout"></a>**Use a local checkout** of this repository instead of the npm package (to test
 unpublished changes): import the plugin from its file path.
 
 ```js

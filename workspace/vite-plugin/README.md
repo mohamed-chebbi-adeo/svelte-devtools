@@ -13,6 +13,9 @@ components, their DOM, props and `$state`. It only runs on the Vite dev server
 npm i -D svelte5-devtools-vite-plugin
 ```
 
+> Not published to npm yet — until then, use a
+> [local checkout](#using-a-local-checkout).
+
 ## Usage
 
 List it **before** `svelte()` / `sveltekit()`. The plugin must exclude `svelte`
@@ -122,5 +125,9 @@ curl -s http://localhost:5173/node_modules/svelte/src/internal/client/dom/templa
 
 ## Compatibility
 
-- Svelte `^5.0.0`
-- Vite 5, 6, 7 or 8
+- Svelte `^5.57.0` (tested with 5.57.1 and 5.57.2). The patches hook
+  internals of recent releases; on older 5.x, features are skipped with a
+  `[svelte-devtools]` warning.
+- Vite 5, 6, 7 or 8 (tested with Vite 8)
+- Tested in a Vite + Svelte app served by NestJS (Vite middleware mode, SSR +
+  hydration); SvelteKit is expected to work the same way but hasn't been tested.

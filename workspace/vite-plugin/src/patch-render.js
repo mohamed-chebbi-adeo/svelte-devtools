@@ -1,4 +1,5 @@
 import MagicString from 'magic-string';
+import { unique } from './anchor.js';
 
 // hydrate() in svelte/internal/client/render.js: when the server HTML doesn't
 // match (hydration_mismatch), Svelte throws out of the half-done first attempt
@@ -15,9 +16,9 @@ const FAIL_ANCHOR = 'clear_text_content(target);';
  * @returns {{ code: string, map: any } | null}
  */
 export function patchRender(code, warn) {
-	if (!code.includes(START_ANCHOR) || !code.includes(FAIL_ANCHOR)) {
+	if (!unique(code, START_ANCHOR) || !unique(code, FAIL_ANCHOR)) {
 		warn(
-			'[svelte-devtools] anchor not found in internal/client/render.js — Svelte internals may have changed; hydration-failure cleanup skipped',
+			'[svelte-devtools] anchor not found (or not unique) in internal/client/render.js — Svelte internals may have changed; hydration-failure cleanup skipped',
 		);
 		return null;
 	}

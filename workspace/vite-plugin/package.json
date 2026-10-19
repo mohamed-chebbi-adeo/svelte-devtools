@@ -2,31 +2,31 @@
 	"name": "svelte5-devtools-vite-plugin",
 	"version": "1.0.0",
 	"description": "Vite plugin required by the Svelte 5 Devtools browser extension",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/sveltejs/svelte-devtools.git",
+		"directory": "workspace/vite-plugin"
+	},
+	"license": "MIT",
+	"type": "module",
+	"main": "./src/index.js",
+	"exports": {
+		".": "./src/index.js"
+	},
+	"files": [
+		"src"
+	],
 	"keywords": [
 		"svelte",
 		"svelte5",
 		"devtools",
 		"vite-plugin"
 	],
-	"license": "MIT",
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/sveltejs/svelte-devtools.git",
-		"directory": "workspace/vite-plugin"
-	},
-	"type": "module",
-	"exports": {
-		".": "./src/index.js"
-	},
-	"main": "./src/index.js",
-	"files": [
-		"src"
-	],
 	"dependencies": {
 		"magic-string": "^0.30.11"
 	},
 	"peerDependencies": {
 		"vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0",
-		"svelte": "^5.0.0"
+		"svelte": "^5.57.0"
 	}
 }

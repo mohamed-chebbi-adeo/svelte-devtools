@@ -1,4 +1,5 @@
 import MagicString from 'magic-string';
+import { unique } from './anchor.js';
 
 // assign_nodes(start, end) in svelte/internal/client/dom/template.js is the
 // single canonical site (used by both the hydration and creation paths) where
@@ -15,9 +16,9 @@ const END_ANCHOR = 'effect.nodes.end = hydrate_node;';
  * @returns {{ code: string, map: any } | null}
  */
 export function patchTemplate(code, warn) {
-	if (!code.includes(ANCHOR)) {
+	if (!unique(code, ANCHOR)) {
 		warn(
-			'[svelte-devtools] anchor not found in internal/client/dom/template.js — Svelte internals may have changed; DOM-range instrumentation skipped',
+			'[svelte-devtools] anchor not found (or not unique) in internal/client/dom/template.js — Svelte internals may have changed; DOM-range instrumentation skipped',
 		);
 		return null;
 	}
@@ -25,14 +26,14 @@ export function patchTemplate(code, warn) {
 	const s = new MagicString(code);
 
 	s.replace(ANCHOR, `${ANCHOR}\n\t\tglobalThis.__svelte_devtools_hook__?.nodesAttached?.(effect);`);
-	if (code.includes(END_ANCHOR)) {
+	if (unique(code, END_ANCHOR)) {
 		s.replace(
 			END_ANCHOR,
 			`${END_ANCHOR}\n\t\t\tglobalThis.__svelte_devtools_hook__?.nodesAttached?.(effect);`,
 		);
 	} else {
 		warn(
-			'[svelte-devtools] hydration end anchor not found in internal/client/dom/template.js — multi-root templates may be nested incorrectly',
+			'[svelte-devtools] hydration end anchor not found (or not unique) in internal/client/dom/template.js — multi-root templates may be nested incorrectly',
 		);
 	}
 

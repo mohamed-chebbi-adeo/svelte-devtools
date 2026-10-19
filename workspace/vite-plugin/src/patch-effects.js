@@ -1,4 +1,5 @@
 import MagicString from 'magic-string';
+import { unique } from './anchor.js';
 
 // Every effect (component root, each-iteration, if-branch, template render
 // effect, ...) is built by create_effect() in
@@ -17,9 +18,9 @@ const DESTROY_ANCHOR = 'effect.component_function = null;';
  * @returns {{ code: string, map: any } | null}
  */
 export function patchEffects(code, warn) {
-	if (!code.includes(CREATE_ANCHOR) || !code.includes(DESTROY_ANCHOR)) {
+	if (!unique(code, CREATE_ANCHOR) || !unique(code, DESTROY_ANCHOR)) {
 		warn(
-			'[svelte-devtools] anchor not found in internal/client/reactivity/effects.js — Svelte internals may have changed; effect tree instrumentation skipped',
+			'[svelte-devtools] anchor not found (or not unique) in internal/client/reactivity/effects.js — Svelte internals may have changed; effect tree instrumentation skipped',
 		);
 		return null;
 	}
