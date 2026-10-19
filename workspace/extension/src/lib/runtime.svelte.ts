@@ -76,10 +76,14 @@ port.onMessage.addListener(({ type, payload }) => {
 			app.nodes[node.id] = node;
 			if (!node.parent) break;
 
+			// link the $state proxy, not the raw object: pushing `node` again
+			// would wrap it in a second, independent proxy, so its later
+			// children and updates (made through app.nodes) would never render
+			const proxied = app.nodes[node.id];
 			const siblings = node.parent.children;
 			const index = siblings.findIndex((n) => n.id === anchor);
-			if (index === -1) siblings.push(node);
-			else siblings.splice(index, 0, node);
+			if (index === -1) siblings.push(proxied);
+			else siblings.splice(index, 0, proxied);
 
 			break;
 		}
