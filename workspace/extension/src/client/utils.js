@@ -43,6 +43,14 @@ function clone(value, seen = new Map()) {
 	}
 }
 
+/**
+ * Svelte 5: named `$state`/`$derived` locals per component, keyed by its
+ * ComponentContext — filled by svelte-5.js from the Vite plugin's tag() hook.
+ * `set` is absent for a never-reassigned `$state` object (edit its fields instead).
+ * @type {WeakMap<object, Array<{ key: string; derived: boolean; get: () => unknown; set?: (value: unknown) => void }>>}
+ */
+export const componentStates = new WeakMap();
+
 /** @param {SvelteBlockDetail} node  */
 export function serialize(node) {
 	const res = /** @type {SvelteBlockDetail} */ ({
@@ -78,11 +86,9 @@ export function serialize(node) {
 				};
 			} else {
 				// Svelte 5 ComponentContext ({ p, s: props, x: exports, ... }).
-				// Only props (.s) and exports (.x) are readable/editable here —
-				// arbitrary internal $state() locals are compiler-erased with no
-				// name/reference reachable at runtime, so there's no equivalent of
-				// $capture_state()'s full local-variable dump. Surfaced explicitly
-				// below rather than silently omitted.
+				// Props (.s) and exports (.x) come from the context; named
+				// `$state`/`$derived` locals come from the dev-mode `$.tag()` hook
+				// (componentStates). Plain `let` locals have no runtime reference.
 				const context = node.detail;
 				const props = context.s || {};
 				const descriptors = Object.getOwnPropertyDescriptors(props);
@@ -94,16 +100,23 @@ export function serialize(node) {
 					return { key, value, readonly };
 				});
 				const exported = context.x || {};
-				const ctx = Object.keys(exported).map((key) => ({
-					key,
-					value: clone(exported[key]),
-					readonly: true,
-				}));
-				ctx.push({
-					key: '(internal $state not inspectable in Svelte 5)',
-					value: undefined,
-					readonly: true,
+				const states = (componentStates.get(context) || []).map((state) => {
+					let value;
+					try {
+						value = clone(state.get());
+					} catch (error) {
+						// e.g. a $derived whose expression throws
+						value = `[unable to read: ${error instanceof Error ? error.message : error}]`;
+					}
+					return { key: state.key, value, readonly: state.derived };
 				});
+				const ctx = [
+					...states,
+					...Object.keys(exported)
+						// skip Svelte's dev-only legacy stubs ($destroy/$on/$set) that throw when called
+						.filter((key) => !key.startsWith('$') && !states.some((s) => s.key === key))
+						.map((key) => ({ key, value: clone(exported[key]), readonly: true })),
+				];
 
 				res.detail = { attributes, listeners: [], ctx };
 			}

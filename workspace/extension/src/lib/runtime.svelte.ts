@@ -65,6 +65,9 @@ port.onMessage.addListener(({ type, payload }) => {
 				anchor: string;
 			};
 
+			// already known, e.g. replayed by a resync
+			if (app.nodes[node.id]) break;
+
 			node.parent = app.nodes[target];
 			node.children = [];
 			node.expanded = false;
@@ -84,11 +87,18 @@ port.onMessage.addListener(({ type, payload }) => {
 		case 'bridge::courier/node->remove': {
 			const node = payload.node as SvelteBlockDetail;
 			const current = app.nodes[node.id];
-			if (current) delete app.nodes[current.id];
-			if (!current?.parent) break;
+			if (!current) break;
+			// drop the whole subtree: a moved component is removed and re-added
+			// with its descendants' same ids, which add would otherwise skip
+			const forget = (n: DebugNode) => {
+				delete app.nodes[n.id];
+				n.children.forEach(forget);
+			};
+			forget(current);
+			if (!current.parent) break;
 
 			const index = current.parent.children.findIndex((o) => o.id === current.id);
-			current.parent.children.splice(index, 1);
+			if (index !== -1) current.parent.children.splice(index, 1);
 			break;
 		}
 

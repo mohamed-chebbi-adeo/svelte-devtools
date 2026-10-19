@@ -16,6 +16,7 @@
 
 	let { node, depth = 1 }: Props = $props();
 
+	// svelte-ignore state_referenced_locally -- intentional snapshot of the initial node, diffed to trigger the flash
 	const prev = $state(node);
 
 	function invisible(n: typeof node): boolean {

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import ProfilerFrame from './ProfilerFrame.svelte';
+
 	interface Profiler {
 		type: 'mount' | 'patch' | 'detach';
 		node: import('$lib/state.svelte').DebugNode;
@@ -26,7 +28,7 @@
 					<span>{frame.node.tagName}</span>
 				</button>
 
-				<svelte:self {...frame} onclick={() => onclick(frame)} />
+				<ProfilerFrame {...frame} onclick={() => onclick(frame)} />
 			</li>
 		{/each}
 	</ul>

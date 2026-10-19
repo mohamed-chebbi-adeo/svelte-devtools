@@ -6,7 +6,7 @@
 		"check": "pnpm --filter \"./workspace/*\" check",
 		"format": "pnpm --filter \"./workspace/*\" format"
 	},
-	"packageManager": "pnpm@8.15.6",
+	"packageManager": "pnpm@12.11.2",
 	"devDependencies": {
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@types/node": "^26.0.1",

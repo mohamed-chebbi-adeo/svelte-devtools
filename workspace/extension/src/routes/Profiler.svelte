@@ -17,8 +17,8 @@
 
 	let profileFrame: undefined | Profiler = $state();
 
-	let selected: null | ComponentProps<ProfilerFrame>['children'][0] = $state(null);
-	let top: null | ComponentProps<ProfilerFrame>['children'][0] = $state(null);
+	let selected: null | ComponentProps<typeof ProfilerFrame>['children'][0] = $state(null);
+	let top: null | ComponentProps<typeof ProfilerFrame>['children'][0] = $state(null);
 
 	function round(n: number) {
 		return Math.round(n * 100) / 100;

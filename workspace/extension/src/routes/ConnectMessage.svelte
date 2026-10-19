@@ -3,7 +3,7 @@
 </script>
 
 <main>
-	<h1 style:font-size="3rem">Svelte DevTools</h1>
+	<h1 style:font-size="3rem">Svelte 5 Devtools</h1>
 	<p style:display="inline-flex" style:font-size="1.25rem">
 		<span>No Svelte app detected</span>
 
@@ -14,7 +14,7 @@
 		<p style:font-size="1rem">Not working? Did you...</p>
 		<ul>
 			<li>Build with dev mode enabled?</li>
-			<li>Use Svelte version ^4.0.0?</li>
+			<li>Use Svelte version ^4.0.0, or ^5.0.0 with <code>svelte5-devtools-vite-plugin</code>?</li>
 		</ul>
 	</footer>
 </main>

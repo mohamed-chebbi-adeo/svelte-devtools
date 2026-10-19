@@ -11,7 +11,7 @@ export function inject(keys: string[], value: any) {
 		`window['#SvelteDevTools'].inject('${uuid}', ${accessors}, ${value})`,
 		(_, error) => {
 			const id = `${uuid}+${keys.join('.')}`;
-			errors[id] = error?.isException && error.value.slice(0, error.value.indexOf('\n'));
+			errors[id] = !!error?.isException && error.value.slice(0, error.value.indexOf('\n'));
 		},
 	);
 }

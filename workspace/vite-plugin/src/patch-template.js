@@ -21,10 +21,7 @@ export function patchTemplate(code, warn) {
 
 	const s = new MagicString(code);
 
-	s.replace(
-		ANCHOR,
-		`${ANCHOR}\n\t\tglobalThis.__svelte_devtools_hook__?.nodesAttached?.(effect);`,
-	);
+	s.replace(ANCHOR, `${ANCHOR}\n\t\tglobalThis.__svelte_devtools_hook__?.nodesAttached?.(effect);`);
 
 	return { code: s.toString(), map: s.generateMap({ hires: true }) };
 }

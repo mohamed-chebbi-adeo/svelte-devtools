@@ -2,7 +2,7 @@ import { highlight } from './highlight.js';
 import { send } from './runtime.js';
 import { index } from './tree.js';
 import { resolveDomNode } from './svelte-5.js';
-import { serialize } from './utils.js';
+import { componentStates, serialize } from './utils.js';
 // svelte-4.js's DOM CustomEvent listeners are pure side effects — nothing
 // else imports named exports from it, so it needs an explicit side-effect
 // import to run at all.
@@ -15,9 +15,8 @@ import './svelte-4.js';
 // tree.js, so no version branching is needed for tree/highlight/select.
 // Svelte's PUBLIC_VERSION is just the major version ('5', not '5.56.4') —
 // compare the whole string, not a prefix.
-const isV5 = [...(/** @type {any} */ (window).__svelte?.v ?? [])].some(
-	(v) => String(v) === '5',
-);
+const versions = /** @type {any} */ (window).__svelte?.v ?? [];
+const isV5 = [...versions].some((v) => String(v) === '5');
 
 // @ts-ignore - https://developer.chrome.com/docs/extensions/how-to/devtools/extend-devtools#selected-element
 window['#SvelteDevTools'] = {
@@ -31,14 +30,30 @@ window['#SvelteDevTools'] = {
 		if (!node) return;
 
 		if (isV5) {
-			// Svelte 5: only props (component_context.s) are editable — see the
-			// v5 branch of serialize() in utils.js for why arbitrary internal
-			// $state() locals aren't reachable here.
+			// Svelte 5: named $state locals (via the tag() hook, see svelte-5.js)
+			// or props (component_context.s).
 			const context = node.detail;
+			const [prop, ...rest] = keys;
+
+			const state = componentStates.get(context)?.find((s) => s.key === prop);
+			if (state) {
+				if (state.derived) return;
+				if (rest.length === 0) {
+					state.set?.(value);
+					return;
+				}
+				// $state objects are deep proxies, so mutating them in place is reactive
+				let ref = /** @type {any} */ (state.get());
+				for (let i = 0; i < rest.length - 1; i += 1) {
+					ref = ref[rest[i]];
+				}
+				ref[rest[rest.length - 1]] = value;
+				return;
+			}
+
 			const props = context?.s;
 			if (!props) return;
 
-			const [prop, ...rest] = keys;
 			if (rest.length === 0) {
 				props[prop] = value;
 				return;
@@ -123,7 +138,19 @@ window.addEventListener('message', ({ data, source }) => {
 	// only accept messages from our application or script
 	if (source !== window || data?.source !== 'svelte-devtools') return;
 
-	if (data.type === 'bridge::ext/select') {
+	if (data.type === 'bridge::ext/resync') {
+		// a panel just connected or the page finished loading: replace the
+		// panel's tree with a full snapshot, parents first. Sent over the same
+		// channel as live updates so the clear can't overtake them, and it
+		// recovers messages posted before the relay was listening
+		send('bridge::ext/clear');
+		/** @param {SvelteBlockDetail} node */
+		const replay = (node) => {
+			send('bridge::courier/node->add', { node: serialize(node), target: node.parent?.id });
+			node.children.forEach(replay);
+		};
+		new Set(index.map.values()).forEach((node) => !node.parent && replay(node));
+	} else if (data.type === 'bridge::ext/select') {
 		const node = index.map.get(data.payload);
 		// @ts-expect-error - saved for `devtools.inspect()`
 		if (node) window.$n = node.detail;

@@ -15,6 +15,9 @@ chrome.runtime.onConnect.addListener((port) => {
 				if (!chrome.tabs.onUpdated.hasListener(courier)) {
 					chrome.tabs.onUpdated.addListener(courier);
 				}
+				// DevTools opened on an already-loaded page: connect now and ask
+				// courier.js for the tree it built so far, instead of requiring a reload
+				resync(message.tabId).catch(() => {}); // e.g. chrome:// pages
 				break;
 			}
 			case 'bypass::ext/page->refresh': {
@@ -50,11 +53,36 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 	if (port) return port.postMessage(message);
 });
 
-/** @type {Parameters<chrome.tabs.TabUpdatedEvent['addListener']>[0]} */
+/** @type {Parameters<typeof chrome.tabs.onUpdated.addListener>[0]} */
 function courier(tabId, changed) {
-	if (!ports.has(tabId) || changed.status !== 'loading') return;
+	const port = ports.get(tabId);
+	if (!port) return;
+	if (changed.status === 'complete') {
+		// the relay is injected asynchronously, so the first tree messages of a
+		// fast hydration can be lost — resync the full tree once loaded
+		resync(tabId).catch(() => {});
+		return;
+	}
+	if (changed.status !== 'loading') return;
+	// a new page is loading: drop the previous page's tree. Done here rather
+	// than from the page's `unload` event, which Chrome no longer reliably fires
+	port.postMessage({ type: 'bridge::ext/clear' });
+	relay(tabId).catch(() => {});
+}
 
-	chrome.scripting.executeScript({
+/**
+ * Makes sure the relay is listening, then asks courier.js to replace the
+ * panel's tree with the one it built so far.
+ * @param {number} tabId
+ */
+async function resync(tabId) {
+	await relay(tabId);
+	await chrome.tabs.sendMessage(tabId, { source: 'svelte-devtools', type: 'bridge::ext/resync' });
+}
+
+/** @param {number} tabId */
+function relay(tabId) {
+	return chrome.scripting.executeScript({
 		target: { tabId },
 
 		// ensures we're listening to the events before they're dispatched
@@ -71,6 +99,12 @@ function courier(tabId, changed) {
 		//	- chrome.i18n
 		//	- chrome.runtime
 		func: () => {
+			// injected on page load and again whenever a panel connects — only once per page
+			// @ts-ignore
+			if (window.__svelte_devtools_relay__) return;
+			// @ts-ignore
+			window.__svelte_devtools_relay__ = true;
+
 			chrome.runtime.onMessage.addListener((message, sender) => {
 				if (sender.id !== chrome.runtime.id) return; // unexpected sender
 				window.postMessage(message); // relay to content script (courier.js)
@@ -81,10 +115,6 @@ function courier(tabId, changed) {
 				if (source === window && data?.source === 'svelte-devtools') {
 					chrome.runtime.sendMessage(data);
 				}
-			});
-
-			window.addEventListener('unload', () => {
-				chrome.runtime.sendMessage({ type: 'bridge::ext/clear' });
 			});
 		},
 	});

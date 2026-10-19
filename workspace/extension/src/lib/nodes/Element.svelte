@@ -9,16 +9,28 @@
 		tagName: string;
 		empty: boolean;
 		expanded: boolean;
-		attributes: ComponentProps<ElementAttributes>['attributes'];
-		listeners: ComponentProps<ElementAttributes>['listeners'];
+		attributes: ComponentProps<typeof ElementAttributes>['attributes'];
+		listeners: ComponentProps<typeof ElementAttributes>['listeners'];
 		children: import('svelte').Snippet;
 	}
 
 	let { tagName, empty, expanded = $bindable(), attributes, listeners, children }: Props = $props();
 
-	const cached = $derived(attributes.map((o) => ({ ...o, value: stringify(o.value) })));
+	const MAX_PREVIEW = 80;
 
-	function stringify(value: any): string {
+	const cached = $derived(
+		attributes.map((o) => {
+			const value = stringify(o.value);
+			return {
+				...o,
+				value: value.length > MAX_PREVIEW ? `${value.slice(0, MAX_PREVIEW - 1)}…` : value,
+			};
+		}),
+	);
+
+	// inline tag preview, like a console summary: nested objects/arrays collapse
+	// (full values stay browsable in the Props/State panel below)
+	function stringify(value: any, depth = 0): string {
 		switch (typeof value) {
 			case 'string':
 				return `"${value}"`;
@@ -28,11 +40,18 @@
 				return value != value ? 'NaN' : value.toString();
 			case 'object':
 				if (value == null) return 'null';
-				if (Array.isArray(value)) return `[${value.map(stringify).join(', ')}]`;
 				if (value.__is === 'function') return value.name + '()';
 				if (value.__is === 'symbol') return value.name;
-				return `{${Object.entries(value)
-					.map(([key, value]) => `${key}: ${stringify(value)}`)
+				if (Array.isArray(value)) {
+					if (depth > 0) return value.length ? '[…]' : '[]';
+					return `[${value.map((v) => stringify(v, depth + 1)).join(', ')}]`;
+				}
+				// cloned objects hold `{ key, value, readonly }` entries (see clone() in
+				// client/utils.js) — print the wrapped value, not the wrapper
+				const entries = Object.values(value) as { key: string; value: unknown }[];
+				if (depth > 0) return entries.length ? '{…}' : '{}';
+				return `{${entries
+					.map((entry) => `${entry.key}: ${stringify(entry.value, depth + 1)}`)
 					.join(', ')}}`;
 
 			case 'bigint':
